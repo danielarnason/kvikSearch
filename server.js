@@ -3,6 +3,10 @@ import cors from 'cors'
 import swaggerUi from 'swagger-ui-express'
 import swaggerJSDoc from 'swagger-jsdoc'
 import pkg from 'pg'
+import dotenv from 'dotenv'
+
+dotenv.config()
+
 const { Pool } = pkg
 
 const app = express()
@@ -49,11 +53,11 @@ const swaggerSpec = swaggerJSDoc(swaggerOptions)
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
 
 const pool = new Pool({
-    database: 'postgres',
-    user: 'postgres',
-    password: 'postgres',
-    host: 'localhost',
-    port: 5432
+    database: process.env.DB_NAME,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT
 })
 
 app.get('/husnummer', async (req, res) => {
@@ -75,11 +79,11 @@ app.get('/husnummer', async (req, res) => {
             type,
             sogestreng,
             ST_AsGeoJSON(geom)::json as geometry,
-            word_similarity($1, sogestreng) AS score
+            gsearch.word_similarity($1::text, sogestreng::text) AS score
         FROM
             gsearch.soge_indeks
         WHERE
-            $2 <% sogestreng
+            $2::text OPERATOR(gsearch.<%) sogestreng::text
             AND (
                 sogestreng ILIKE $3
                 OR sogestreng ILIKE $4
