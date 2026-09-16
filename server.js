@@ -43,6 +43,27 @@ const swaggerOptions = {
                         }
                     }
                 }
+            },
+            '/matrikler': {
+                get: {
+                    summary: 'Søg efter matrikler (Fuzzy & Type-ahead)',
+                    parameters: [
+                        {
+                            in: 'query',
+                            name: 'q',
+                            required: true,
+                            schema: {
+                                type: 'string'
+                            },
+                            description: 'Søgestrengen (f.eks. matrikelnummer eller betegnelse)'
+                        }
+                    ],
+                    responses: {
+                        '200': {
+                            description: 'En liste med op til 10 matchende matrikler'
+                        }
+                    }
+                }
             }
         }
     },
@@ -129,6 +150,63 @@ app.get('/husnummer', async (req, res) => {
 
 })
 
+app.get('/matrikler', async (req, res) => {
+    const q = req.query.q
+
+    if (!q) {
+        return res.status(400).json({
+            error: 'Parameter \'q\' mangler. Prøv f.eks. ?q=1234'
+        })
+    }
+
+    const queryString = q.trim()
+
+    const sql = `
+            SELECT
+            id,
+            sogestreng,
+            ST_AsGeoJSON(ST_MULTI(geom))::json AS geometry,
+            gsearch.word_similarity($1, sogestreng) AS score
+        FROM gsearch.soge_index_matrikler
+        WHERE
+            sogestreng ILIKE '%' || $1 || '%'
+            OR $1 OPERATOR(gsearch.<%) sogestreng
+        ORDER BY
+            CASE
+                WHEN sogestreng ~* ('\y' || $1) THEN 3
+                WHEN sogestreng ILIKE $1 || '%' THEN 2
+                ELSE 1
+            END DESC,
+            score DESC,
+            sogestreng
+        LIMIT 10;`
+
+    const queryParams = [
+        queryString
+    ]
+
+    try {
+        const client = await pool.connect()
+
+        try {
+            await client.query('BEGIN;')
+            // await client.query('SET LOCAL pg_trgm.word_similarity_threshold = 0.2;')
+
+            const result = await client.query(sql, queryParams)
+
+            await client.query('COMMIT;')
+            res.json(result.rows)
+        } catch (queryErr) {
+            await client.query('ROLLBACK;').catch(() => {})
+            throw queryErr
+        } finally {
+            client.release()
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message })
+    }
+})
+
 app.listen(port, () => {
-    console.log(`Test-API kører! Prøv at besøge http://localhost:${port}/husnummer?q=Dalsvej`)
+    console.log(`Test-API kører! Prøv at besøge http://localhost:${port}/husnummer?q=Dalsvej eller http://localhost:${port}/matrikler?q=1234`)
 })
