@@ -164,6 +164,7 @@ app.get('/matrikler', async (req, res) => {
     const sql = `
             SELECT
             id,
+            type,
             sogestreng,
             ST_AsGeoJSON(ST_MULTI(geom))::json AS geometry,
             gsearch.word_similarity($1, sogestreng) AS score
