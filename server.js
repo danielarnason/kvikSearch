@@ -98,7 +98,7 @@ app.get('/husnummer', async (req, res) => {
         SELECT
             id, 
             type,
-            sogestreng,
+            sogestreng as visningstekst,
             ST_AsGeoJSON(ST_MULTI(geom))::json as geometry,
             gsearch.word_similarity($1::text, sogestreng::text) AS score
         FROM
